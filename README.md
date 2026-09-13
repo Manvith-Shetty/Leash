@@ -1,7 +1,9 @@
 # Leash — agent spending authority as an ENSv2 namespace tree
 
-Live on ENSv2 Sepolia and Hedera testnet. Each agent is a non-transferable, expiring subname whose
-resolver text records are its budget. Agents mint sub-agents whose budgets and
+Live on ENSv2 Sepolia and Hedera testnet. Each agent is an expiring subname whose
+resolver text records are its budget — non-transferable by default, with one
+transferable and one permanently locked demo name showing the ends of the
+spectrum. Agents mint sub-agents whose budgets and
 expiries are enforced **on-chain as strict subsets** of their parent's. Every
 payment settles on Hedera via x402, writes to HCS, and clears a middleware that
 walks the whole ancestor chain first.
@@ -14,10 +16,28 @@ walks the whole ancestor chain first.
 | L2 registry (holds `agent`) | [`0xec8F768460DD212Fc83d47B048045EB6b6B13097`](https://sepolia.etherscan.io/address/0xec8F768460DD212Fc83d47B048045EB6b6B13097) |
 | L3 registry (holds `sub`) | [`0x1189D5A05e60F7144b40b5F0FA144d1e2B695CF8`](https://sepolia.etherscan.io/address/0x1189D5A05e60F7144b40b5F0FA144d1e2B695CF8) |
 | `MandateRegistrar` | [`0x33699c74f777c581db3b9c7079d87b778cae2312`](https://sepolia.etherscan.io/address/0x33699c74f777c581db3b9c7079d87b778cae2312) |
-| Tree | `root` → `agent.root` → `sub.agent.root` (100000 / 50000 / 10000 budget, +90d / +60d / +30d) |
+| Tree | `root` → `agent.root` → `sub.agent.root` (100000 / 50000 / 10000 budget, +90d / +60d / +30d), plus `pay.agent.root` (alias, below) and `gift.agent.root` (transferable, locked, below) |
+| Resolvers | r1 [`0xC6d4…25dF`](https://sepolia.etherscan.io/address/0xC6d444C4c117e2405Ed91df8b822b130898F25dF) · r2 [`0x761b…c01d`](https://sepolia.etherscan.io/address/0x761b4C406b7dFa4BF0c42C73852664A19134C01D) · r3 [`0xFC7c…5B62`](https://sepolia.etherscan.io/address/0xFC7C820Cf6e2aE1D686278AC6479407201735B62) · r5 [`0x8f3b…B61a`](https://sepolia.etherscan.io/address/0x8f3b0037f97681e8674792f7f0ee185ee807b61a) (one resolver per name) |
+| Policy | root + `agent.root`: `inference,compute,ops`; `sub.agent.root`: `inference`-only ([root tx](https://sepolia.etherscan.io/tx/0x039e6a63ad9d736c7b5f77529d49790b13a579393904ee808a3cd1785e3c7d36), [agent tx](https://sepolia.etherscan.io/tx/0x209feb994fef785d812250182d37587e073d1f79f688b53420279891ddfbff1f)) |
 
 Verify without a wallet: `cast call $L3 'getResolver(string)(address)' sub`,
 `cast call $L1 'getSubregistry(string)(address)' root`, or run the live test below.
+
+## ENSv2 features, mapped to the track
+
+| Brief asks | Where it lives on-chain |
+|---|---|
+| Own subname registries, own rules | L1/L2/L3 UserRegistry proxies + `MandateRegistrar` (subset-enforced minting) |
+| EAC delegation (edit-only-certain-keys) | ops account holds `ratePerMinute`-only on `sub.agent.root` — its `budget` write reverts; both legs reproducible free via `cast call --from` |
+| Subnames own their data | one Permissioned Resolver per name (r1/r2/r3/r5) |
+| Record aliasing | `pay.agent.root` shares `agent.root`'s records ([mint](https://sepolia.etherscan.io/tx/0xb484cf91436a7e7fdccb6e55a84539b6d7a7fbac349bfb78c935a8e28ae98352), [alias](https://sepolia.etherscan.io/tx/0x17aa47a26e6769d27f50f3b3cac9cb9f1e11d8964c9a3380ab2ee1e7e05d4bc8)) — `resolve()` returns the parent's budget with nothing seeded on `pay` |
+| Transferable vs locked spectrum | `gift.agent.root`: transfer-inclusive bitmap, budget `500`, text records permanently locked ([lock tx](https://sepolia.etherscan.io/tx/0x528a38781b0d7a1e716f47ae12876707751cbabbd159a57f520d994e04c54525)) — even the ex-admin's write reverts; mandates stay non-transferable |
+| Expiring, revocable | +90/+60/+30d expiries; one-`unregister` kill switch darkens the whole tree (demo step 5) |
+| AI agents as namespaces | the autopilot trio below, each under its own mandate |
+
+Known gap: the tree is standalone, not mounted under the ENS root, so the
+Universal Resolver and wildcard resolution can't reach it (`resolve()` reverts
+`ResolverNotFound`) — mounting is the roadmap, not the demo.
 
 ## How it works
 
@@ -301,5 +321,8 @@ One incident costs about $0.0013: a diagnosis (~$0.0008) and one repair.
    for `start cache`; the watcher confirms and the page shows the time to fix.
    Before `ops` is granted, the repair is denied and autopilot pauses.
 7. **Activity**: the whole trail, replayed from HCS.
+8. **Agents**: the ENS extras are on-chain and badged — `pay.agent.root` (alias
+   of `agent.root`, shares its records), `gift.agent.root` (transferable,
+   records locked forever). Open either for resolver links and tx hashes.
 
 Budgets are the `budget/allowedServices/ratePerMinute/maxPerCall` text records.
