@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://leash-gateway-production.up.railway.app/:path*" },
+    { "source": "/runner/:path*", "destination": "https://leash-runner-production-8714.up.railway.app/:path*" }
+  ]
+}
