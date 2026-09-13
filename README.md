@@ -1,12 +1,52 @@
-# Leash — agent spending authority as an ENSv2 namespace tree
+# Leash
 
-Live on ENSv2 Sepolia and Hedera testnet. Each agent is an expiring subname whose
-resolver text records are its budget — non-transferable by default, with one
-transferable and one permanently locked demo name showing the ends of the
-spectrum. Agents mint sub-agents whose budgets and
-expiries are enforced **on-chain as strict subsets** of their parent's. Every
-payment settles on Hedera via x402, writes to HCS, and clears a middleware that
-walks the whole ancestor chain first.
+<p align="center">
+
+**Spending limits for AI agents, written into ENS names and checked before every payment.**
+
+<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ">🎥 Demo Video</a>
+
+<br/>
+
+<img width="1683" height="1041" alt="Leash Dashboard" src="https://github.com/user-attachments/assets/761343f4-a658-4b9d-8956-4e1adeb8dcff" /> <br/>
+
+**AI agents that keep your infrastructure running and pay for what they use, without ever going past the limits you set.**
+
+Picture an app that breaks at 3am. Instead of paging someone, a small team of
+AI agents notices, works out what went wrong, and pays for the fix. They can
+also rent servers when a job needs one and buy AI answers when they need to
+think something through.
+
+The catch with letting agents spend money is that nothing stops them from
+spending all of it. That's the part Leash handles. Each agent gets its own
+name, and that name carries its rules: how much it can spend, how much per
+request, what kinds of services it can buy, and when its permission runs out.
+
+Agents can create helper agents, but a helper can never get more money or more
+time than the agent that made it. Before any payment goes through, Leash checks
+the rules of the paying agent *and* of every agent above it. If any one of them
+says no, no money moves.
+
+### What the agents do in this repo
+
+- **Keep an app healthy.** With [Autopilot](#autopilot-three-agents-keep-an-app-running),
+  one agent watches a small web app, a second works out what broke, and a third
+  pays for the repair. Each one has its own limits: the agent that diagnoses
+  the problem can't buy repairs, and the one that buys repairs doesn't do the
+  diagnosis. If a fix is refused or doesn't work, Autopilot stops and waits for
+  a person instead of paying again.
+- **Rent servers.** An agent can [rent a container by the minute](#compute-agents-renting-real-servers)
+  from a plain-English request like "Run a Redis cache for 10 minutes".
+  Revoke the agent, and its servers are shut down within seconds.
+- **Buy AI answers.** Agents [pay per token](#paying-for-ai-on-hedera) and pick
+  the cheapest provider they're allowed to use. No API keys or sign-ups.
+
+Every one of those payments goes through the same checks and ends up on a
+public record.
+
+It's running on two test networks: Ethereum's **Sepolia** holds the names and
+their rules, and **Hedera** handles the payments and the public record of every
+one of them.
 
 ## Live on Sepolia (chain id 11155111)
 
