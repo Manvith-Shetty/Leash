@@ -4,13 +4,12 @@
 
 **Spending limits for AI agents, written into ENS names and checked before every payment.**
 
-<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ">🎥 Demo Video</a>
-
-<br/>
-
-<img width="1683" height="1041" alt="Leash Dashboard" src="https://github.com/user-attachments/assets/761343f4-a658-4b9d-8956-4e1adeb8dcff" /> <br/>
+<a href="https://youtu.be/xX7pC6oQz9Y">🎥 Demo Video</a>
 
 **AI agents that keep your infrastructure running and pay for what they use, without ever going past the limits you set.**
+
+**A mock infra has been deployed on a DigitalOcean droplet containing a web server, a Python API and Redis which our leash will monitor 24x7.
+Want to access it?** <a href="http://167.172.153.80:8088/">Mock Infra link</a>
 
 Picture an app that breaks at 3am. Instead of paging someone, a small team of
 AI agents notices, works out what went wrong, and pays for the fix. They can
@@ -26,6 +25,8 @@ Agents can create helper agents, but a helper can never get more money or more
 time than the agent that made it. Before any payment goes through, Leash checks
 the rules of the paying agent *and* of every agent above it. If any one of them
 says no, no money moves.
+
+<img width="1683" height="1041" alt="Leash Dashboard" src="https://github.com/user-attachments/assets/761343f4-a658-4b9d-8956-4e1adeb8dcff" /> <br/>
 
 ### What the agents do in this repo
 
