@@ -80,6 +80,14 @@ export interface LiveMandate {
   createdTx?: string
   /** Why the text records couldn't be read, if they couldn't. */
   recordsError?: string
+  /** Full name this name's records alias to, when it shares another name's records. */
+  aliasTo?: string
+  /** Registrar mint (subset-enforced, non-transferable) or direct registration. */
+  mintSource?: 'registrar' | 'direct'
+  /** Text records immutable even for the owner — proven live by eth_call probe. */
+  locked?: boolean
+  /** The token itself can move — proven live by eth_call probe. */
+  transferable?: boolean
 }
 
 export type ActivityKind =

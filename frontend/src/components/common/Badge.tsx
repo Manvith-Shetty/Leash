@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { AgentStatus } from '../../lib/types'
+import type { Agent, AgentStatus } from '../../lib/types'
 import { cx, STATUS_LABEL, STATUS_TONE } from '../../lib/utils'
 
 export function StatusBadge({
@@ -69,6 +69,26 @@ export function Mono({ children, className }: { children: ReactNode; className?:
   return (
     <span className={cx('font-mono text-[12px] tracking-tight text-ink-dim', className)}>
       {children}
+    </span>
+  )
+}
+
+/** On-chain traits the reader proves live: aliasing, locks, transferability. */
+export function TraitPills({ agent, className }: { agent: Agent; className?: string }) {
+  const mandate = agent.mandate
+  if (!mandate) return null
+  const traits: Array<{ label: string; tone: 'delegated' | 'warn' | 'authority' }> = []
+  if (mandate.aliasTo) traits.push({ label: `Alias → ${mandate.aliasTo}`, tone: 'delegated' })
+  if (mandate.locked) traits.push({ label: 'Records locked', tone: 'warn' })
+  if (mandate.transferable) traits.push({ label: 'Transferable', tone: 'authority' })
+  if (traits.length === 0) return null
+  return (
+    <span className={cx('flex flex-wrap gap-1', className)}>
+      {traits.map((t) => (
+        <Pill key={t.label} tone={t.tone}>
+          {t.label}
+        </Pill>
+      ))}
     </span>
   )
 }

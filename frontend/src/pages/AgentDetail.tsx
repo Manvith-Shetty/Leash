@@ -24,7 +24,7 @@ import {
 } from '../lib/utils'
 import { Button, ButtonLink } from '../components/common/Button'
 import { Card, CardHead } from '../components/common/Card'
-import { StatusBadge } from '../components/common/Badge'
+import { StatusBadge, TraitPills } from '../components/common/Badge'
 import { AuthorityMeter, LimitBar, MeterLegend } from '../components/common/Meter'
 import { Tabs } from '../components/common/Tabs'
 import { EmptyState } from '../components/common/EmptyState'
@@ -345,6 +345,14 @@ function LivePermissions({ agent }: { agent: Agent }) {
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <Card>
         <CardHead title="Mandate records" hint="ENS text records on this agent's resolver, read live." />
+        <TraitPills agent={agent} className="mt-3" />
+        {mandate.aliasTo && (
+          <p className="mt-3 rounded-md border border-delegated/30 bg-delegated/[0.06] px-3 py-2.5 text-[12.5px] text-delegated">
+            Alias of {mandate.aliasTo} — this name stores no records of its own; everything above
+            resolves from its target on-chain. Verify with <span className="font-mono">getAlias</span> on
+            the resolver below.
+          </p>
+        )}
         {mandate.recordsError ? (
           <p className="mt-4 rounded-md border border-warn/30 bg-warn/[0.06] px-3 py-2.5 text-[12.5px] text-warn">
             {mandate.recordsError}. The gateway will refuse this agent until its records are set.

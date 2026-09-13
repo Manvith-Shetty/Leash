@@ -301,10 +301,15 @@ export function adapt(snapshot: LiveSnapshot): LiveModel {
     const budget = node.records?.budget ?? node.mintBudget ?? 0n
     const services = node.records?.allowedServices ?? []
     const maxPerCall = units(node.records?.maxPerCall ?? budget)
+    const description = node.aliasTo
+      ? `Alias of ${node.aliasTo} — shares its records on-chain, no duplication`
+      : node.transferable
+        ? `Transferable ENSv2 subname on ${config.ensChainName}`
+        : `Non-transferable ENSv2 subname on ${config.ensChainName}`
     return {
       id: node.name,
       name: node.name,
-      description: `Non-transferable ENSv2 subname on ${config.ensChainName}`,
+      description,
       parentId: node.parent,
       children: nodes.filter((n) => n.parent === node.name).map((n) => n.name),
       authority: units(budget),
@@ -332,6 +337,10 @@ export function adapt(snapshot: LiveSnapshot): LiveModel {
         canParent: node.bound && Boolean(node.subregistry) && node.status === 'active',
         createdTx: node.createdTx,
         recordsError: node.recordsError,
+        aliasTo: node.aliasTo,
+        mintSource: node.mintSource,
+        locked: node.locked,
+        transferable: node.transferable,
       },
     }
   })

@@ -11,8 +11,10 @@
  */
 
 import {
+  bytesToHex,
   createPublicClient,
   decodeEventLog,
+  encodeFunctionData,
   getAddress,
   http,
   keccak256,
@@ -37,6 +39,7 @@ export const registryAbi = parseAbi([
   'function getSubregistry(string label) view returns (address)',
   'function getResolver(string label) view returns (address)',
   'function getExpiry(uint256 anyId) view returns (uint64)',
+  'function roles(uint256 resource, address account) view returns (uint256)',
   'function unregister(uint256 anyId)',
   'function renew(uint256 anyId, uint64 newExpiry)',
 ])
@@ -44,8 +47,14 @@ export const registryAbi = parseAbi([
 export const resolverAbi = parseAbi([
   'function text(bytes32 node, string key) view returns (string)',
   'function setText(bytes32 node, string key, string value)',
+  'function getAlias(bytes name) view returns (bytes)',
   'function multicall(bytes[] data) returns (bytes[])',
 ])
+
+/** EAC transfer bits: regular CAN_TRANSFER + its admin. A name whose owner
+ * holds any of these can move the token; the registrar's mandate bitmap
+ * omits both, which is what makes mandates non-transferable. */
+const TRANSFER_BITS = (1n << 28n) | ((1n << 28n) << 128n)
 
 export const registrarAbi = parseAbi([
   'function parentNodeFor(address parentRegistry, uint256 parentLabelhash) view returns (bytes32)',
@@ -125,6 +134,14 @@ export interface EnsNode {
   recordsError?: string
   /** Budget the registrar minted with — the fallback when records are gone. */
   mintBudget?: bigint
+  /** How this name came to exist: a registrar mint, or a direct registration. */
+  mintSource: 'registrar' | 'direct'
+  /** Full name this name's records alias to (record aliasing, same resolver). */
+  aliasTo?: string
+  /** True when even the owner can't write text records (proven by eth_call probe). */
+  locked?: boolean
+  /** True when the token itself can move (proven by eth_call probe). */
+  transferable?: boolean
   /** Whether the registrar has this node bound as a parent. */
   bound: boolean
   createdAt?: number
@@ -143,6 +160,34 @@ const addr = (a: string) => getAddress(lc(a))
 
 export function labelhashOf(label: string): bigint {
   return BigInt(keccak256(toBytes(label)))
+}
+
+/** `pay.agent.root` → DNS wire bytes for the `authorize*`/`getAlias` calls. */
+function dnsEncode(name: string): Hash {
+  const parts = name.split('.').map((l) => toBytes(l))
+  const out = new Uint8Array(parts.reduce((n, p) => n + 1 + p.length, 0) + 1)
+  let o = 0
+  for (const p of parts) {
+    out[o++] = p.length
+    out.set(p, o)
+    o += p.length
+  }
+  out[o] = 0
+  return bytesToHex(out)
+}
+
+/** DNS wire bytes → `agent.root`. Empty input means no alias. */
+function dnsDecode(data: string): string {
+  if (!data || data === '0x') return ''
+  const bytes = toBytes(data as Hash)
+  const labels: string[] = []
+  let i = 0
+  while (i < bytes.length && bytes[i] !== 0) {
+    const len = bytes[i++]
+    labels.push(new TextDecoder().decode(bytes.slice(i, i + len)))
+    i += len
+  }
+  return labels.join('.')
 }
 
 /**
@@ -205,6 +250,8 @@ interface LabelEntry {
   registry: Address
   label: string
   labelhash: bigint
+  /** Latest token id — re-registration and unregister bump the low 32 bits. */
+  tokenId: bigint
   createdBlock: bigint
   createdLogIndex: number
   createdTx: Hash
@@ -264,6 +311,7 @@ export async function loadTree(): Promise<EnsSnapshot> {
           registry,
           label: a.label,
           labelhash: BigInt(a.labelHash),
+          tokenId: a.tokenId,
           createdBlock: log.blockNumber!,
           createdLogIndex: log.logIndex!,
           createdTx: log.transactionHash!,
@@ -272,6 +320,7 @@ export async function loadTree(): Promise<EnsSnapshot> {
         }
         entry.lastActivation = log.blockNumber!
         entry.owner = a.owner
+        entry.tokenId = a.tokenId
         if (!existing) {
           entries.set(key, entry)
           byRegistry.set(regKey, [...(byRegistry.get(regKey) ?? []), entry])
@@ -378,11 +427,35 @@ export async function loadTree(): Promise<EnsSnapshot> {
       expiresAt: expiry,
       status,
       mintBudget: mint?.budget,
+      mintSource: mint ? 'registrar' : 'direct',
       bound: boundR.status === 'success' && !/^0x0+$/.test(boundR.result as string),
       createdTx: mint?.tx ?? entry.createdTx,
       createdAt: undefined,
       revokedAt: undefined,
     }
+  })
+
+  // 4b. Record aliases: which names share another name's records. Aliasing
+  // only resolves through `resolve()`, so an aliased node reads empty via
+  // `text()` — the reader follows the pointer itself instead.
+  const aliased = nodes.filter((n) => n.resolver)
+  const aliasResults = await client.multicall({
+    contracts: aliased.map(
+      (n) =>
+        ({
+          address: n.resolver!,
+          abi: resolverAbi,
+          functionName: 'getAlias',
+          args: [dnsEncode(n.name)],
+        }) as const,
+    ),
+    allowFailure: true,
+  })
+  aliased.forEach((node, i) => {
+    const r = aliasResults[i]
+    if (r.status !== 'success') return
+    const target = dnsDecode(r.result as string)
+    if (target) node.aliasTo = target
   })
 
   // 5. Text records, from the live (or last known) resolver of each node.
@@ -418,6 +491,64 @@ export async function loadTree(): Promise<EnsSnapshot> {
       ratePerMinute: int(rate) ?? 0n,
       allowedServices: services.split(',').map((s) => s.trim()).filter(Boolean),
     }
+  })
+
+  // 5b. Aliased nodes share their target's records — resolve the pointer the
+  // same way the Universal Resolver would, so the dashboard shows what a
+  // `resolve()` caller sees instead of an empty-record warning.
+  const byName = new Map(nodes.map((n) => [n.name, n]))
+  for (const node of nodes) {
+    if (node.records || !node.aliasTo) continue
+    const target = byName.get(node.aliasTo)
+    if (target?.records) {
+      node.records = target.records
+      node.recordsError = undefined
+    }
+  }
+
+  // 5c. Live capability probes (eth_call only — nothing is sent). A locked
+  // name refuses even its owner's writes (proven per name); transferability
+  // is read from the EAC role bitmap on the name's own token resource —
+  // NEVER by attempting a transfer, which a root admin could always force.
+  const lockProbes = nodes.map(async (node) => {
+    if (!node.resolver || !node.owner || !node.records) return
+    try {
+      await client.call({
+        account: node.owner!,
+        to: node.resolver!,
+        data: encodeFunctionData({
+          abi: resolverAbi,
+          functionName: 'setText',
+          args: [namehash(node.name), 'budget', node.records.budget.toString()],
+        }),
+      })
+      node.locked = false
+    } catch {
+      node.locked = true
+    }
+  })
+  const roleCalls = nodes.flatMap((n, i) => {
+    const entry = reachable[i]
+    return n.owner && entry
+      ? [
+          {
+            address: n.registry,
+            abi: registryAbi,
+            functionName: 'roles',
+            args: [entry.tokenId, n.owner],
+          } as const,
+        ]
+      : []
+  })
+  const [roleResults] = await Promise.all([
+    client.multicall({ contracts: roleCalls, allowFailure: true }),
+    Promise.all(lockProbes),
+  ])
+  let roleCursor = 0
+  nodes.forEach((node, i) => {
+    if (!node.owner || !reachable[i]) return
+    const r = roleResults[roleCursor++]
+    if (r.status === 'success') node.transferable = ((r.result as bigint) & TRANSFER_BITS) !== 0n
   })
 
   // 6. Timeline: mints, unregisters, renewals — with block timestamps.

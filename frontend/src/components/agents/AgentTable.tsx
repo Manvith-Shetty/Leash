@@ -3,7 +3,7 @@ import { useLeash } from '../../lib/store'
 import { deriveStatus, statsFor } from '../../lib/selectors'
 import type { Agent } from '../../lib/types'
 import { cx, money, percent } from '../../lib/utils'
-import { StatusBadge } from '../common/Badge'
+import { StatusBadge, TraitPills } from '../common/Badge'
 import { AuthorityMeter } from '../common/Meter'
 import { Menu } from '../common/Menu'
 import { EmptyState } from '../common/EmptyState'
@@ -68,6 +68,7 @@ export function AgentTable({
                     >
                       {agent.name}
                     </span>
+                    <TraitPills agent={agent} className="mt-1" />
                   </Link>
                 </td>
                 <td className="py-2.5 pr-4 text-[12.5px] text-muted">

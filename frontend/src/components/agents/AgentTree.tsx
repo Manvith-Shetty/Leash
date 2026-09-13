@@ -233,6 +233,9 @@ function Tooltip({
     ['Remaining', money(stats.remaining)],
     ['Children', String(stats.childCount)],
     ['Expires', node.agent.expiresAt ? formatDate(node.agent.expiresAt) : 'Never'],
+    ...(node.agent.mandate?.aliasTo ? [['Alias of', node.agent.mandate.aliasTo] as [string, string]] : []),
+    ...(node.agent.mandate?.locked ? [['Records', 'Locked forever'] as [string, string]] : []),
+    ...(node.agent.mandate?.transferable ? [['Token', 'Transferable'] as [string, string]] : []),
   ]
 
   return (
